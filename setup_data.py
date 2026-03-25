@@ -7,13 +7,17 @@ def generate_datasets():
     np.random.seed(42)
     n_samples = 1500
 
-    # 1. Lifestyle Dataset (used by the sample model)
+    # 1. Lifestyle Dataset (Upgraded)
     age = np.random.normal(55, 12, n_samples)
     bmi = np.random.normal(28, 5, n_samples)
     sys_bp = np.random.normal(125, 15, n_samples)
     glucose = np.random.normal(105, 25, n_samples)
     resting_hr = np.random.normal(72, 12, n_samples)
-    risk_score = (age/50) + (bmi/25) + (sys_bp/120) + (glucose/100)
+    sleep_hours = np.random.normal(6.5, 1.5, n_samples) # NEW 
+    cholesterol = np.random.normal(200, 40, n_samples)  # NEW
+    
+    # Enhanced Risk Core logic: Low sleep and high cholesterol raise the risk
+    risk_score = (age/50) + (bmi/25) + (sys_bp/120) + (glucose/100) + (cholesterol/150) - (sleep_hours/4)
     y_lifestyle = (risk_score > np.percentile(risk_score, 70)).astype(int)
     
     df_lifestyle = pd.DataFrame({
@@ -22,13 +26,15 @@ def generate_datasets():
         'Systolic_BP': np.round(sys_bp, 1),
         'Fasting_Glucose': np.round(glucose, 1),
         'Resting_HR': np.round(resting_hr, 1),
+        'Sleep_Hours': np.round(sleep_hours, 1),
+        'Cholesterol_Level': np.round(cholesterol, 1),
         'High_Risk': y_lifestyle
     })
     df_lifestyle.to_csv('data/lifestyle_disease_dataset.csv', index=False)
     
     # 2. Chronic Dataset
-    gfr = np.random.normal(70, 20, n_samples)  # Glomerular filtration rate
-    creat = np.random.normal(1.2, 0.4, n_samples) # Creatinine
+    gfr = np.random.normal(70, 20, n_samples)  
+    creat = np.random.normal(1.2, 0.4, n_samples) 
     smoking = np.random.randint(0, 30, n_samples)
     fev1 = np.random.normal(2.5, 0.8, n_samples)
     risk_chronic = (creat*2) - (gfr/10) + (smoking/10) - (fev1)
@@ -48,7 +54,7 @@ def generate_datasets():
     max_hr = np.random.normal(150, 20, n_samples)
     chest_pain = np.random.choice([0, 1, 2, 3], n_samples, p=[0.5, 0.2, 0.2, 0.1])
     risk_crit = (troponin*100) + chest_pain - (max_hr/200)
-    y_crit = (risk_crit > np.percentile(risk_crit, 85)).astype(int) # Top 15%
+    y_crit = (risk_crit > np.percentile(risk_crit, 85)).astype(int) 
     
     df_crit = pd.DataFrame({
         'Troponin_Level': np.round(troponin, 3),
@@ -58,10 +64,7 @@ def generate_datasets():
     })
     df_crit.to_csv('data/critical_disease_dataset.csv', index=False)
 
-    print("Successfully generated mock datasets in 'data/' directory:")
-    print(" - data/lifestyle_disease_dataset.csv")
-    print(" - data/chronic_disease_dataset.csv")
-    print(" - data/critical_disease_dataset.csv")
+    print("Successfully generated upgraded datasets with new features.")
 
 if __name__ == "__main__":
     generate_datasets()

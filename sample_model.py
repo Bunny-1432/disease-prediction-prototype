@@ -1,9 +1,9 @@
-
+import os
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
+import xgboost as xgb
 
 try:
     import shap
@@ -11,55 +11,36 @@ try:
 except ImportError:
     SHAP_AVAILABLE = False
     print("Warning: 'shap' library not found. Explainability layer will be skipped.")
-    print("You can install it with: pip install shap")
 
-def generate_synthetic_data(n_samples=1000):
-    """
-    Generates dummy patient data with lifestyle and vital signs.
-    """
-    np.random.seed(42)
-    # Simulated features based on the Multi-Disease Design
-    age = np.random.normal(55, 12, n_samples)
-    bmi = np.random.normal(28, 5, n_samples)
-    systolic_bp = np.random.normal(125, 15, n_samples)
-    fasting_glucose = np.random.normal(105, 25, n_samples)
-    resting_hr = np.random.normal(72, 12, n_samples)
-    
-    # Target Logic: 0 = Low/Medium Risk, 1 = High/Critical Risk
-    # Higher values heavily increase the risk score
-    risk_score = (age/50) + (bmi/25) + (systolic_bp/120) + (fasting_glucose/100)
-    
-    # Top 30% are considered High Risk
-    threshold = np.percentile(risk_score, 70)
-    y = (risk_score > threshold).astype(int)
-    
-    X = pd.DataFrame({
-        'Age': np.round(age, 1),
-        'BMI': np.round(bmi, 1),
-        'Systolic_BP': np.round(systolic_bp, 1),
-        'Fasting_Glucose': np.round(fasting_glucose, 1),
-        'Resting_HR': np.round(resting_hr, 1)
-    })
-    
+DATA_REGISTRY = {
+    'Lifestyle': 'data/lifestyle_disease_dataset.csv',
+    'Chronic': 'data/chronic_disease_dataset.csv',
+    'Critical': 'data/critical_disease_dataset.csv'
+}
+
+import setup_data
+
+def load_data(category):
+    file_path = DATA_REGISTRY.get(category)
+    if not file_path or not os.path.exists(file_path):
+        print(f"Dataset for {category} not found at {file_path}. Auto-generating all datasets now...")
+        setup_data.generate_datasets()
+        
+    df = pd.read_csv(file_path)
+    X = df.drop(columns=['High_Risk'])
+    y = df['High_Risk']
     return X, y
 
-def train_and_evaluate_model():
-    print("1. Loading 'Lifestyle Disease' patient dataset from CSV...")
-    import os
-    if not os.path.exists('data/lifestyle_disease_dataset.csv'):
-        print("Warning: Dataset not found. Generating dynamically.")
-        X, y = generate_synthetic_data(1500)
-    else:
-        df = pd.read_csv('data/lifestyle_disease_dataset.csv')
-        X = df.drop(columns=['High_Risk'])
-        y = df['High_Risk']
+def train_and_evaluate_model(category='Lifestyle'):
+    print(f"1. Loading '{category}' patient dataset from CSV...")
+    X, y = load_data(category)
     
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    print("2. Training the Stage 2 Risk Model (Random Forest)...")
-    # Using a simple Random Forest as our classifier
-    model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+    print(f"2. Training the {category} Risk Model (XGBoost)...")
+    # Using XGBoost for tabular medical data as industry standard
+    model = xgb.XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42, eval_metric='logloss')
     model.fit(X_train, y_train)
     
     # Evaluation
@@ -73,7 +54,7 @@ def train_and_evaluate_model():
 
 def explain_prediction(model, sample_input):
     """
-    Demonstrates the Explainability Layer (Requirement #3) using SHAP values.
+    Demonstrates Explainability (XAI) using SHAP values on XGBoost.
     """
     print("\n--- Model Explainability (XAI) ---")
     
@@ -81,25 +62,26 @@ def explain_prediction(model, sample_input):
         print("Install SHAP to see feature attribution.")
         return
 
+    # XGBoost Explainer
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(sample_input)
     
-    # Extract the 1D SHAP values for class 1 (High Risk) safely across SHAP versions
+    # XGBoost shap_values shape for binary classification is usually (n_samples, n_features)
     if isinstance(shap_values, list):
         impact_values = shap_values[1][0]
     elif len(np.shape(shap_values)) == 3:
         impact_values = shap_values[0, :, 1]
     else:
+        # Standard 2D output from TreeExplainer on XGBClassifier
         impact_values = shap_values[0]
     
     print(f"Patient Input Data:\n{sample_input.iloc[0].to_dict()}")
-    prediction = model.predict(sample_input)[0]
+    prediction = int(model.predict(sample_input)[0])
     prob = model.predict_proba(sample_input)[0]
     
-    print(f"\nFinal Prediction: {'High Risk (Urgent)' if prediction == 1 else 'Low Risk (Routine)'}")
+    print(f"\nFinal Prediction: {'🚨 High Risk (Urgent)' if prediction == 1 else '✅ Low Risk (Routine)'}")
     print(f"Confidence Score: {prob[prediction] * 100:.2f}%")
     
-    # Create a dataframe to show feature impact
     feature_names = sample_input.columns
     importance_df = pd.DataFrame({
         'Feature': feature_names,
@@ -117,13 +99,14 @@ def explain_prediction(model, sample_input):
     print(f"\"The prediction was primarily driven by the patient's {top_feature} and {second_feature}.\"")
 
 if __name__ == "__main__":
-    trained_model, X_train_data, X_test_data = train_and_evaluate_model()
-    
-    # Pick a random high-risk patient from the test set to explain
-    high_risk_indices = X_test_data.index[trained_model.predict(X_test_data) == 1]
-    
-    if len(high_risk_indices) > 0:
-        sample_patient = X_test_data.loc[[high_risk_indices[0]]]
-        explain_prediction(trained_model, sample_patient)
-    else:
-        print("No high-risk patients found in the test set to explain.")
+    # Test all models to verify pipeline stability
+    for category in DATA_REGISTRY.keys():
+        trained_model, X_train_data, X_test_data = train_and_evaluate_model(category)
+        
+        # Pick a random high-risk patient from the test set to explain
+        high_risk_indices = X_test_data.index[trained_model.predict(X_test_data) == 1]
+        
+        if len(high_risk_indices) > 0:
+            sample_patient = X_test_data.loc[[high_risk_indices[0]]]
+            explain_prediction(trained_model, sample_patient)
+        print("="*60)
