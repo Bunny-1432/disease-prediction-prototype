@@ -18,7 +18,6 @@ def generate_synthetic_data(n_samples=1000):
     Generates dummy patient data with lifestyle and vital signs.
     """
     np.random.seed(42)
-    
     # Simulated features based on the Multi-Disease Design
     age = np.random.normal(55, 12, n_samples)
     bmi = np.random.normal(28, 5, n_samples)
@@ -45,8 +44,15 @@ def generate_synthetic_data(n_samples=1000):
     return X, y
 
 def train_and_evaluate_model():
-    print("1. Generating synthetic patient data...")
-    X, y = generate_synthetic_data(1500)
+    print("1. Loading 'Lifestyle Disease' patient dataset from CSV...")
+    import os
+    if not os.path.exists('data/lifestyle_disease_dataset.csv'):
+        print("Warning: Dataset not found. Generating dynamically.")
+        X, y = generate_synthetic_data(1500)
+    else:
+        df = pd.read_csv('data/lifestyle_disease_dataset.csv')
+        X = df.drop(columns=['High_Risk'])
+        y = df['High_Risk']
     
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
