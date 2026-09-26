@@ -355,7 +355,7 @@ export default function Dashboard() {
               </span>
             </div>
 
-            {!history || history.total_records === 0 ? (
+            {!history || !history.records || history.records.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)' }}>
                 <Stethoscope size={36} strokeWidth={1.5} style={{ margin: '0 auto 12px', color: '#94a3b8' }} />
                 <p style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>No previous assessments recorded</p>
@@ -370,7 +370,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {history.records.slice(0, 6).map((r) => {
+                {(history.records || []).slice(0, 6).map((r) => {
                   const tColor = TIER_COLORS[r.risk_tier] || '#64748b'
                   const tBg = TIER_BG[r.risk_tier] || '#f8fafc'
 

@@ -279,8 +279,10 @@ export function clientPredict(payload) {
   const result = {
     prediction_id: predictionId,
     patient_id: payload.patient_id || 'DEMO-PATIENT',
+    timestamp: now,
     evaluated_at: now,
-    top_predictions: topPredictions,
+    category: profile.category || category,
+    top_predictions: topPredictions.map(tp => ({ ...tp, probability: tp.confidence })),
     explainability: {
       summary,
       top_features: topFeatures,
@@ -295,7 +297,9 @@ export function clientPredict(payload) {
     history.unshift({
       prediction_id: predictionId,
       patient_id: result.patient_id,
+      timestamp: now,
       evaluated_at: now,
+      top_disease: targetKey,
       primary_disease: targetKey,
       risk_score: riskScore,
       risk_tier: riskTier,
@@ -324,7 +328,9 @@ export function clientGetHistory(userId = 'demo_user', limit = 10) {
       {
         prediction_id: 'PRED-INIT-01',
         patient_id: 'PT-8831',
+        timestamp: new Date(Date.now() - 86400000 * 5).toISOString(),
         evaluated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+        top_disease: 'Type 2 Diabetes',
         primary_disease: 'Type 2 Diabetes',
         risk_score: 72,
         risk_tier: 'High',
@@ -333,7 +339,9 @@ export function clientGetHistory(userId = 'demo_user', limit = 10) {
       {
         prediction_id: 'PRED-INIT-02',
         patient_id: 'PT-8831',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
         evaluated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        top_disease: 'Hypertension',
         primary_disease: 'Hypertension',
         risk_score: 58,
         risk_tier: 'High',
@@ -342,7 +350,9 @@ export function clientGetHistory(userId = 'demo_user', limit = 10) {
       {
         prediction_id: 'PRED-INIT-03',
         patient_id: 'PT-8831',
+        timestamp: new Date(Date.now() - 86400000 * 1).toISOString(),
         evaluated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+        top_disease: 'Healthy / Optimal Baseline',
         primary_disease: 'Healthy / Optimal Baseline',
         risk_score: 18,
         risk_tier: 'Low',
@@ -351,46 +361,61 @@ export function clientGetHistory(userId = 'demo_user', limit = 10) {
     ]
   }
 
+  // Normalize all record fields for Dashboard.jsx compatibility
+  const normalized = records.map(r => ({
+    prediction_id: r.prediction_id || 'PRED-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+    timestamp: r.timestamp || r.evaluated_at || new Date().toISOString(),
+    evaluated_at: r.evaluated_at || r.timestamp || new Date().toISOString(),
+    top_disease: r.top_disease || r.primary_disease || 'Type 2 Diabetes',
+    primary_disease: r.primary_disease || r.top_disease || 'Type 2 Diabetes',
+    risk_score: typeof r.risk_score === 'number' ? r.risk_score : 50,
+    risk_tier: r.risk_tier || 'Medium',
+    confidence: typeof r.confidence === 'number' ? r.confidence : 0.8,
+  }))
+
   return {
     user_id: userId,
-    total_records: records.length,
-    history: records.slice(0, limit),
+    total_records: normalized.length,
+    records: normalized.slice(0, limit),
+    history: normalized.slice(0, limit),
   }
 }
 
 export function clientGetRiskAnalysis(userId = 'demo_user', limit = 10) {
-  const { history } = clientGetHistory(userId, limit)
-  if (!history || history.length === 0) {
+  const res = clientGetHistory(userId, limit)
+  const records = res.records || []
+  if (records.length === 0) {
     return {
       user_id: userId,
       records_analyzed: 0,
       average_risk_score: 0,
-      trend: 'insufficient_data',
+      current_trend: 'Stable',
+      highest_risk_tier: 'Optimal',
       risk_timeline: [],
     }
   }
 
-  const scores = history.map((h) => h.risk_score)
+  const scores = records.map((h) => h.risk_score)
   const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
 
-  let trend = 'stable'
+  let trend = 'Stable'
   if (scores.length >= 2) {
     const diff = scores[0] - scores[scores.length - 1]
-    if (diff <= -5) trend = 'improving'
-    else if (diff >= 5) trend = 'deteriorating'
+    if (diff <= -5) trend = 'Improving'
+    else if (diff >= 5) trend = 'Worsening'
   }
+
+  const tiers = ['Critical', 'High', 'Medium', 'Low']
+  const presentTiers = records.map((r) => r.risk_tier)
+  const highestTier = tiers.find((t) => presentTiers.includes(t)) || 'Low'
 
   return {
     user_id: userId,
     records_analyzed: scores.length,
     average_risk_score: avg,
-    trend,
-    risk_timeline: history.map((h) => ({
-      evaluated_at: h.evaluated_at,
-      risk_score: h.risk_score,
-      risk_tier: h.risk_tier,
-      primary_disease: h.primary_disease,
-    })),
+    current_trend: trend,
+    highest_risk_tier: highestTier,
+    risk_timeline: records,
   }
 }
 
