@@ -50,10 +50,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS: allow the Vite dev server ──────────────────────────────────────
+# ── CORS: allow Vite dev, preview, and GitHub Pages ─────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "https://bunny-1432.github.io",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
