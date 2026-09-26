@@ -2,7 +2,7 @@
  * App.jsx — Precision Root Application Shell with Modern Floating Header
  * Inspired by shadcn/ui and kokonutui design patterns.
  */
-import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
+import { HashRouter, Routes, Route, NavLink, Link } from 'react-router-dom'
 import { Activity, LayoutDashboard, Stethoscope, Sparkles, Clock } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import PredictionForm from './pages/PredictionForm'
@@ -131,7 +131,7 @@ function Navbar() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Navbar />
       <main>
         <Routes>
@@ -141,6 +141,6 @@ export default function App() {
           <Route path="/disease/:name" element={<DiseaseInfoPage />} />
         </Routes>
       </main>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
